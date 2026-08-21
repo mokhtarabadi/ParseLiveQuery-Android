@@ -40,10 +40,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
     private final List<ParseLiveQueryClientCallbacks> mCallbacks = new ArrayList<>();
 
-    private WebSocketClient webSocketClient;
-    private int requestIdCount = 1;
-    private boolean userInitiatedDisconnect = false;
-    private boolean hasReceivedConnected = false;
+    private volatile WebSocketClient webSocketClient;
+    private volatile int requestIdCount = 1;
+    private volatile boolean userInitiatedDisconnect = false;
+    private volatile boolean hasReceivedConnected = false;
 
     /* package */ ParseLiveQueryClientImpl() {
         this(getDefaultUri());
@@ -92,11 +92,17 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         Subscription<T> subscription = new Subscription<>(requestId, query);
         subscriptions.put(requestId, subscription);
 
-        if (isConnected()) {
+        Log.d(LOG_TAG, "subscribe() called for query: " + query.getClassName() + " (requestId=" + requestId + ")");
+
+        // Fix Issue #70: Only send immediately if WebSocket is connected AND we received op=connected
+        // This prevents duplicate subscriptions when subscribing before op=connected is received
+        if (isConnected() && hasReceivedConnected) {
+            Log.d(LOG_TAG, "WebSocket connected and ready, sending subscription immediately");
             sendSubscription(subscription);
         } else if (userInitiatedDisconnect) {
             Log.w(LOG_TAG, "Warning: The client was explicitly disconnected! You must explicitly call .reconnect() in order to process your subscriptions.");
         } else {
+            Log.d(LOG_TAG, "WebSocket not ready yet (state=" + getWebSocketState() + ", hasReceivedConnected=" + hasReceivedConnected + "), queuing subscription");
             connectIfNeeded();
         }
 
@@ -127,7 +133,8 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     @Override
     public <T extends ParseObject> void unsubscribe(final ParseQuery<T> query) {
         if (query != null) {
-            for (Subscription<? extends ParseObject> subscription : subscriptions.values()) {
+            // Fix Issue #117: Create copy to avoid ConcurrentModificationException
+            for (Subscription<? extends ParseObject> subscription : new java.util.ArrayList<>(subscriptions.values())) {
                 if (query.equals(subscription.getQuery())) {
                     sendUnsubscription(subscription);
                 }
@@ -138,7 +145,8 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     @Override
     public <T extends ParseObject> void unsubscribe(final ParseQuery<T> query, final SubscriptionHandling<T> subscriptionHandling) {
         if (query != null && subscriptionHandling != null) {
-            for (Subscription<? extends ParseObject> subscription : subscriptions.values()) {
+            // Fix Issue #117: Create copy to avoid ConcurrentModificationException
+            for (Subscription<? extends ParseObject> subscription : new java.util.ArrayList<>(subscriptions.values())) {
                 if (query.equals(subscription.getQuery()) && subscriptionHandling.equals(subscription)) {
                     sendUnsubscription(subscription);
                 }
@@ -148,6 +156,12 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
     @Override
     public synchronized void reconnect() {
+        // Fix race condition: only reconnect if connection is not already active
+        if (isConnected()) {
+            Log.d(LOG_TAG, "reconnect() skipped: already connected");
+            return;
+        }
+        cancelPendingReconnect();
         if (webSocketClient != null) {
             webSocketClient.close();
         }
@@ -160,8 +174,14 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
     @Override
     public synchronized void disconnect() {
+        cancelPendingReconnect();
+        // Fix Issue #82: Safely close even if connection was never opened
         if (webSocketClient != null) {
-            webSocketClient.close();
+            try {
+                webSocketClient.close();
+            } catch (Exception e) {
+                Log.w(LOG_TAG, "Error closing WebSocket (may have never been opened)", e);
+            }
             webSocketClient = null;
         }
 
@@ -207,15 +227,35 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         }, taskExecutor);
     }
 
+    /**
+     * Enqueues a {@link ClientOperation} for transmission over the WebSocket.
+     *
+     * <p><b>Thread-safety (V1 fix):</b> The field {@code webSocketClient} can be nulled by
+     * {@link #disconnect()} on a different thread at any moment. To avoid a TOCTOU race
+     * where we null-check the field then read it again for {@code send()}, we capture the
+     * reference into a {@code final} local variable exactly once and branch on that local
+     * for the entire call body. The local may point to a closing socket (send throws) but
+     * will never be {@code null} after the initial capture.</p>
+     */
     private Task<Void> sendOperationAsync(final ClientOperation clientOperation) {
         return Task.call(new Callable<Void>() {
             public Void call() throws Exception {
+                // V1 FIX: Snapshot the volatile field exactly once to prevent TOCTOU race.
+                final WebSocketClient clientSnapshot = webSocketClient;
+                if (clientSnapshot == null) {
+                    Log.w(LOG_TAG, "sendOperationAsync: WebSocket is null, cannot send operation");
+                    return null;
+                }
                 JSONObject jsonEncoded = clientOperation.getJSONObjectRepresentation();
                 String jsonString = jsonEncoded.toString();
                 if (Parse.getLogLevel() <= Parse.LOG_LEVEL_DEBUG) {
                     Log.d(LOG_TAG, "Sending over websocket: " + jsonString);
                 }
-                webSocketClient.send(jsonString);
+                try {
+                    clientSnapshot.send(jsonString);
+                } catch (Exception e) {
+                    Log.e(LOG_TAG, "Failed to send operation over WebSocket", e);
+                }
                 return null;
             }
         }, taskExecutor);
@@ -231,7 +271,8 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                     hasReceivedConnected = true;
                     dispatchConnected();
                     Log.v(LOG_TAG, "Connected, sending pending subscription");
-                    for (Subscription<? extends ParseObject> subscription : subscriptions.values()) {
+                    // Fix Issue #117: Create copy to avoid ConcurrentModificationException
+                    for (Subscription<? extends ParseObject> subscription : new java.util.ArrayList<>(subscriptions.values())) {
                         sendSubscription(subscription);
                     }
                     break;
@@ -376,17 +417,36 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         sendOperationAsync(new UnsubscribeClientOperation(subscription.getRequestId()));
     }
 
+    // Auto-reconnect state (Issue #6)
+    private static final int BASE_RECONNECT_DELAY_MS = 1000;
+    private static final int MAX_RECONNECT_DELAY_MS = 30000;
+    private static final int MAX_RECONNECT_ATTEMPTS = 10;
+    private volatile int reconnectAttempts = 0;
+    private volatile boolean isReconnecting = false;
+    private Runnable pendingReconnectRunnable;
+    private android.os.Handler reconnectHandler;
+
+    private synchronized void cancelPendingReconnect() {
+        if (reconnectHandler != null && pendingReconnectRunnable != null) {
+            reconnectHandler.removeCallbacks(pendingReconnectRunnable);
+            pendingReconnectRunnable = null;
+        }
+        isReconnecting = false;
+    }
+
     private WebSocketClient.WebSocketClientCallback getWebSocketClientCallback() {
         return new WebSocketClient.WebSocketClientCallback() {
             @Override
-            public void onOpen() {
+            public synchronized void onOpen() {
+                cancelPendingReconnect();
                 hasReceivedConnected = false;
+                reconnectAttempts = 0;
                 Log.v(LOG_TAG, "Socket opened");
                 ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
                     @Override
                     public Task<Void> then(Task<String> task) throws Exception {
                         String sessionToken = task.getResult();
-                        return sendOperationAsync(new ConnectClientOperation(applicationId, sessionToken));
+                        return sendOperationAsync(new ConnectClientOperation(applicationId, clientKey, sessionToken));
                     }
                 }).continueWith(new Continuation<Void, Void>() {
                     public Void then(Task<Void> task) {
@@ -414,17 +474,25 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
             }
 
             @Override
-            public void onClose() {
+            public synchronized void onClose() {
                 Log.v(LOG_TAG, "Socket onClose");
                 hasReceivedConnected = false;
                 dispatchDisconnected();
+                // Fix Issue #6: Auto-reconnect if not user-initiated
+                if (!userInitiatedDisconnect) {
+                    scheduleReconnect();
+                }
             }
 
             @Override
-            public void onError(Throwable exception) {
+            public synchronized void onError(Throwable exception) {
                 PLog.e(LOG_TAG, "Socket onError", exception);
                 hasReceivedConnected = false;
                 dispatchSocketError(exception);
+                // Fix Issue #6: Auto-reconnect on error if not user-initiated
+                if (!userInitiatedDisconnect) {
+                    scheduleReconnect();
+                }
             }
 
             @Override
@@ -432,5 +500,40 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                 PLog.v(LOG_TAG, "Socket stateChanged");
             }
         };
+    }
+
+    // Fix Issue #6: Exponential backoff reconnect
+    // Fix Step 1: Use long arithmetic to prevent integer overflow (2^30 * 1000 overflows int)
+    // Fix Step 2: Store handler + runnable references for cancellation on onOpen/disconnect
+    // Fix Step 3: Clamp reconnectAttempts to MAX_RECONNECT_ATTEMPTS
+    private synchronized void scheduleReconnect() {
+        if (isReconnecting || userInitiatedDisconnect || subscriptions.isEmpty()) {
+            return;
+        }
+        // Cancel any previously scheduled reconnect to prevent duplicate timers
+        cancelPendingReconnect();
+        isReconnecting = true;
+
+        // Clamp attempts to prevent overflow even if somehow called excessively
+        int clampedAttempts = Math.min(reconnectAttempts, MAX_RECONNECT_ATTEMPTS);
+        // Use long arithmetic: 1000L * 2^clampedAttempts — safe up to 2^30
+        long delay = Math.min(BASE_RECONNECT_DELAY_MS * (long) Math.pow(2, clampedAttempts), MAX_RECONNECT_DELAY_MS);
+        reconnectAttempts++;
+
+        Log.d(LOG_TAG, "Scheduling reconnect in " + delay + "ms (Attempt " + reconnectAttempts + ")");
+
+        reconnectHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        pendingReconnectRunnable = new Runnable() {
+            @Override
+            public void run() {
+                isReconnecting = false;
+                pendingReconnectRunnable = null;
+                if (!userInitiatedDisconnect && !subscriptions.isEmpty()) {
+                    Log.d(LOG_TAG, "Executing reconnect...");
+                    reconnect();
+                }
+            }
+        };
+        reconnectHandler.postDelayed(pendingReconnectRunnable, delay);
     }
 }

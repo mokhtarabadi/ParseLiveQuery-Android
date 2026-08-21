@@ -30,9 +30,25 @@ class SubscribeClientOperation<T extends ParseObject> extends ClientOperation {
         JSONObject queryJsonObject = new JSONObject();
         queryJsonObject.put("className", state.className());
 
-        // TODO: add support for fields
-        // https://github.com/ParsePlatform/parse-server/issues/3671
-        
+        // PR #110: Add fields support for selective key subscription
+        // V5 FIX: Always ensure "objectId" is present in the fields array.
+        // Without objectId the server cannot route events back to the correct
+        // subscription, which leads to silently dropped CREATE/UPDATE/DELETE.
+        if (state.selectedKeys() != null && state.selectedKeys().size() > 0) {
+            org.json.JSONArray fieldsArray = new org.json.JSONArray();
+            boolean hasObjectId = false;
+            for (String key : state.selectedKeys()) {
+                fieldsArray.put(key);
+                if ("objectId".equals(key)) {
+                    hasObjectId = true;
+                }
+            }
+            if (!hasObjectId) {
+                fieldsArray.put("objectId");
+            }
+            queryJsonObject.put("fields", fieldsArray);
+        }
+
         PointerEncoder pointerEncoder = PointerEncoder.get();
         queryJsonObject.put("where", pointerEncoder.encode(state.constraints()));
 

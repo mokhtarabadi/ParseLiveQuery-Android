@@ -21,7 +21,15 @@ public class OkHttp3SocketClientFactory implements WebSocketClientFactory {
     }
 
     public OkHttp3SocketClientFactory() {
-        mClient = new OkHttpClient();
+        // Optimized for LiveQuery WebSocket: 0 read timeout (long-lived), 15s ping, tuned pool
+        mClient = new OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .pingInterval(15, java.util.concurrent.TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .connectionPool(new okhttp3.ConnectionPool(5, 5, java.util.concurrent.TimeUnit.MINUTES))
+                .build();
     }
 
     @Override
@@ -102,8 +110,22 @@ public class OkHttp3SocketClientFactory implements WebSocketClientFactory {
 
         @Override
         public synchronized void send(String message) {
-            if (state == State.CONNECTED) {
-                webSocket.send(message);
+            // Fix Issue #104: Only send when connected and WebSocket is valid
+            if (state == State.CONNECTED && webSocket != null) {
+                try {
+                    // Fix Step 4: Check boolean return — false means queue full or socket closed
+                    boolean sent = webSocket.send(message);
+                    if (!sent) {
+                        Log.w(LOG_TAG, "WebSocket.send() returned false — queue full or socket closed");
+                        webSocketClientCallback.onError(
+                            new java.io.IOException("WebSocket queue full or socket closed"));
+                    }
+                } catch (Exception e) {
+                    Log.e(LOG_TAG, "Failed to send WebSocket message", e);
+                    webSocketClientCallback.onError(e);
+                }
+            } else {
+                Log.w(LOG_TAG, "Cannot send message: state=" + state + ", webSocket=" + (webSocket != null ? "valid" : "null"));
             }
         }
 
