@@ -269,8 +269,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
             switch (rawOperation) {
                 case "connected":
                     hasReceivedConnected = true;
+                    reconnectAttempts = 0; // F4: Reset only after successful LiveQuery handshake
+                    long wsDuration = System.currentTimeMillis() - wsConnectStartMs;
+                    Log.v(LOG_TAG, "[WS-TIMING] Connected in " + wsDuration + "ms, sending pending subscription");
                     dispatchConnected();
-                    Log.v(LOG_TAG, "Connected, sending pending subscription");
                     // Fix Issue #117: Create copy to avoid ConcurrentModificationException
                     for (Subscription<? extends ParseObject> subscription : new java.util.ArrayList<>(subscriptions.values())) {
                         sendSubscription(subscription);
@@ -418,13 +420,15 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     }
 
     // Auto-reconnect state (Issue #6)
+    // Task 720: Removed MAX_RECONNECT_ATTEMPTS cap — infinite retry with exponential backoff
     private static final int BASE_RECONNECT_DELAY_MS = 1000;
     private static final int MAX_RECONNECT_DELAY_MS = 30000;
-    private static final int MAX_RECONNECT_ATTEMPTS = 10;
     private volatile int reconnectAttempts = 0;
     private volatile boolean isReconnecting = false;
     private Runnable pendingReconnectRunnable;
     private android.os.Handler reconnectHandler;
+    // Task 720: WebSocket timing for 10k visibility
+    private volatile long wsConnectStartMs = 0;
 
     private synchronized void cancelPendingReconnect() {
         if (reconnectHandler != null && pendingReconnectRunnable != null) {
@@ -440,8 +444,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
             public synchronized void onOpen() {
                 cancelPendingReconnect();
                 hasReceivedConnected = false;
-                reconnectAttempts = 0;
-                Log.v(LOG_TAG, "Socket opened");
+                // F4: reconnectAttempts reset moved to "connected" case in handleOperation
+                // Only reset after successful LiveQuery handshake, not just socket open
+                wsConnectStartMs = System.currentTimeMillis();
+                Log.v(LOG_TAG, "[WS-TIMING] Socket opened at " + wsConnectStartMs);
                 ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
                     @Override
                     public Task<Void> then(Task<String> task) throws Exception {
@@ -503,24 +509,25 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     }
 
     // Fix Issue #6: Exponential backoff reconnect
-    // Fix Step 1: Use long arithmetic to prevent integer overflow (2^30 * 1000 overflows int)
-    // Fix Step 2: Store handler + runnable references for cancellation on onOpen/disconnect
-    // Fix Step 3: Clamp reconnectAttempts to MAX_RECONNECT_ATTEMPTS
+    // Task 720: Removed MAX_RECONNECT_ATTEMPTS cap — infinite retry
+    // Task 720: Removed subscriptions.isEmpty() guard — reconnect even if subscriptions were GC'd
+    // Task 720: Added detailed logging for every reconnect attempt
     private synchronized void scheduleReconnect() {
-        if (isReconnecting || userInitiatedDisconnect || subscriptions.isEmpty()) {
+        if (isReconnecting || userInitiatedDisconnect) {
             return;
         }
         // Cancel any previously scheduled reconnect to prevent duplicate timers
         cancelPendingReconnect();
         isReconnecting = true;
 
-        // Clamp attempts to prevent overflow even if somehow called excessively
-        int clampedAttempts = Math.min(reconnectAttempts, MAX_RECONNECT_ATTEMPTS);
+        // F4: Clamp reconnectAttempts safely to prevent negative arithmetic on overflow
+        int clampedAttempts = Math.max(0, Math.min(reconnectAttempts, 30));
         // Use long arithmetic: 1000L * 2^clampedAttempts — safe up to 2^30
         long delay = Math.min(BASE_RECONNECT_DELAY_MS * (long) Math.pow(2, clampedAttempts), MAX_RECONNECT_DELAY_MS);
         reconnectAttempts++;
 
-        Log.d(LOG_TAG, "Scheduling reconnect in " + delay + "ms (Attempt " + reconnectAttempts + ")");
+        Log.d(LOG_TAG, "[RECONNECT] Scheduling reconnect in " + delay + "ms (Attempt " + reconnectAttempts
+                + ", subscriptions=" + subscriptions.size() + ")");
 
         reconnectHandler = new android.os.Handler(android.os.Looper.getMainLooper());
         pendingReconnectRunnable = new Runnable() {
@@ -528,8 +535,8 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
             public void run() {
                 isReconnecting = false;
                 pendingReconnectRunnable = null;
-                if (!userInitiatedDisconnect && !subscriptions.isEmpty()) {
-                    Log.d(LOG_TAG, "Executing reconnect...");
+                if (!userInitiatedDisconnect) {
+                    Log.d(LOG_TAG, "[RECONNECT] Executing reconnect attempt " + reconnectAttempts);
                     reconnect();
                 }
             }
