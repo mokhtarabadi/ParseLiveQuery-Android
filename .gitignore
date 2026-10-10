@@ -38,3 +38,6 @@ server.config
 # Jacoco
 jacoco.exec
 
+
+# Custom Context MCP reports
+context-reports/

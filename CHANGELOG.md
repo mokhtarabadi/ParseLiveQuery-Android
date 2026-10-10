@@ -2,6 +2,13 @@
 
 ### master
 
+### 1.2.3
+- Modernize build: AGP 9.2.1, SDK 35, minSdk 23, mavenCentral; drop legacy coverage plugins
+- Upgrade deps: Parse SDK 4.4.0, OkHttp 5.4.0, Robolectric 4.7, JUnit 4.13.2, Mockito 4.6.1
+- Add clientKey to connect operation; harden OkHttp send path and reconnect backoff
+- Guarantee objectId in subscribe fields so events are never silently dropped
+- Phase 0 Cognitive init: AGENTS.md, opencode.json (build agent, ZAC), docs/conventions.md, docs/architecture.md, docs/data_model.md, tasks/ Kanban (5 dirs) with 01-align-gradle-wrapper + 02-inject-clock-reconnect-backoff, living docs for livequery + tests slices with code pointers on 4 primary sources.
+
 ### 1.2.2
 - CHANGE: Change OkHttp dependency to allow for Android versions < 5.0
 
