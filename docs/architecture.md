@@ -78,7 +78,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 6. Deployment & Infrastructure
 
 - JitPack artifact `com.github.parse-community:ParseLiveQuery-Android`.
-- CI (`.github/workflows/ci.yml`): `check-lint` (JDK 11 + `spotlessCheck`), `check-gradlewrapper`, `check-build` (`clean jacocoTestReport` + codecov). Note: root AGP 9.2.1 vs wrapper 5.6.4 skew — local builds require modern Gradle; CI pins JDK 11.
+- CI (`.github/workflows/ci.yml`): `check-lint` (JDK 17 + `spotlessCheck` with upstream ratchet), `check-gradlewrapper`, `check-build` (`clean` + unit tests + AGP built-in coverage report + codecov). Checkout uses full history (`fetch-depth: 0`) so the Spotless ratchet can resolve `origin/master`.
 - Android: `compileSdk/targetSdk 35`, `minSdk 23`, Java 8, `abortOnError false`.
 
 ## 7. Security Considerations
@@ -90,7 +90,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 8. Development & Testing Environment
 
 - Fast loop: `./gradlew :ParseLiveQuery:testDebugUnitTest --no-daemon`.
-- Full gate: `./gradlew --no-daemon clean jacocoTestReport` + `./gradlew spotlessCheck --no-daemon`.
+- Full gate: `./gradlew --no-daemon clean :ParseLiveQuery:testDebugUnitTest :ParseLiveQuery:createDebugUnitTestCoverageReport` + `./gradlew :ParseLiveQuery:spotlessCheck --no-daemon`.
 - Key tests: `TestParseLiveQueryClient`, `TestSubscribeOperationFields` (fields/objectId invariant), `TestReconnectBackoff`, `TestAdversarialFixes`.
 
 ## 9. Future Considerations

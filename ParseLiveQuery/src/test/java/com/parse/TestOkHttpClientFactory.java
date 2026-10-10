@@ -10,7 +10,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.MockitoAnnotations;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.net.URI;
 
@@ -18,7 +20,8 @@ import okhttp3.OkHttpClient;
 
 import static com.parse.livequery.WebSocketClient.State.NONE;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 28)
 public class TestOkHttpClientFactory {
 
     @Mock
@@ -32,6 +35,7 @@ public class TestOkHttpClientFactory {
 
     @Before
     public void setUp() throws Exception {
+        MockitoAnnotations.openMocks(this);
         okHttp3SocketClientFactory = new OkHttp3SocketClientFactory(okHttpClientMock);
         webSocketClient = okHttp3SocketClientFactory.createInstance(webSocketClientCallbackMock, new URI("http://www.test.com"));
     }

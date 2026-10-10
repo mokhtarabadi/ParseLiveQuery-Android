@@ -38,6 +38,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     private final URI uri;
     private final WebSocketClientFactory webSocketClientFactory;
     private final WebSocketClient.WebSocketClientCallback webSocketClientCallback;
+    private final ParseLiveQueryClock clock;
 
     private final List<ParseLiveQueryClientCallbacks> mCallbacks = new ArrayList<>();
 
@@ -63,12 +64,17 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     }
 
     /* package */ ParseLiveQueryClientImpl(URI uri, WebSocketClientFactory webSocketClientFactory, Executor taskExecutor) {
+        this(uri, webSocketClientFactory, taskExecutor, ParseLiveQueryClock.SYSTEM);
+    }
+
+    /* package */ ParseLiveQueryClientImpl(URI uri, WebSocketClientFactory webSocketClientFactory, Executor taskExecutor, ParseLiveQueryClock clock) {
         Parse.checkInit();
         this.uri = uri;
         this.applicationId = ParsePlugins.get().applicationId();
         this.clientKey = ParsePlugins.get().clientKey();
         this.webSocketClientFactory = webSocketClientFactory;
         this.taskExecutor = taskExecutor;
+        this.clock = clock;
         this.webSocketClientCallback = getWebSocketClientCallback();
     }
 
@@ -271,7 +277,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                 case "connected":
                     hasReceivedConnected = true;
                     reconnectAttempts = 0; // F4: Reset only after successful LiveQuery handshake
-                    long wsDuration = System.currentTimeMillis() - wsConnectStartMs;
+                    long wsDuration = clock.currentTimeMillis() - wsConnectStartMs;
                     Log.v(LOG_TAG, "[WS-TIMING] Connected in " + wsDuration + "ms, sending pending subscription");
                     dispatchConnected();
                     // Fix Issue #117: Create copy to avoid ConcurrentModificationException
@@ -447,7 +453,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                 hasReceivedConnected = false;
                 // F4: reconnectAttempts reset moved to "connected" case in handleOperation
                 // Only reset after successful LiveQuery handshake, not just socket open
-                wsConnectStartMs = System.currentTimeMillis();
+                wsConnectStartMs = clock.currentTimeMillis();
                 Log.v(LOG_TAG, "[WS-TIMING] Socket opened at " + wsConnectStartMs);
                 ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
                     @Override

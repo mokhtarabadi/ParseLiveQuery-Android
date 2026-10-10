@@ -27,12 +27,8 @@ public class TestSubscribeOperationFields {
         ParseQuery<ParseObject> query = new ParseQuery<>("Test");
         query.selectKeys(Arrays.asList("name", "email"));
 
-        // Access internal state via reflection
-        java.lang.reflect.Field stateField = ParseQuery.class.getDeclaredField("queryState");
-        stateField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        ParseQuery.State<ParseObject> state =
-            (ParseQuery.State<ParseObject>) stateField.get(query);
+        // Frozen wire state, same call the client itself uses.
+        ParseQuery.State<ParseObject> state = query.getBuilder().build();
 
         SubscribeClientOperation<ParseObject> op =
             new SubscribeClientOperation<>(1, state, "test-session");
@@ -61,11 +57,7 @@ public class TestSubscribeOperationFields {
         ParseQuery<ParseObject> query = new ParseQuery<>("Test");
         // No selectKeys called — selectedKeys is null
 
-        java.lang.reflect.Field stateField = ParseQuery.class.getDeclaredField("queryState");
-        stateField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        ParseQuery.State<ParseObject> state =
-            (ParseQuery.State<ParseObject>) stateField.get(query);
+        ParseQuery.State<ParseObject> state = query.getBuilder().build();
 
         SubscribeClientOperation<ParseObject> op =
             new SubscribeClientOperation<>(1, state, "test-session");
@@ -84,11 +76,7 @@ public class TestSubscribeOperationFields {
         ParseQuery<ParseObject> query = new ParseQuery<>("Test");
         query.selectKeys(Arrays.asList("objectId", "name"));
 
-        java.lang.reflect.Field stateField = ParseQuery.class.getDeclaredField("queryState");
-        stateField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        ParseQuery.State<ParseObject> state =
-            (ParseQuery.State<ParseObject>) stateField.get(query);
+        ParseQuery.State<ParseObject> state = query.getBuilder().build();
 
         SubscribeClientOperation<ParseObject> op =
             new SubscribeClientOperation<>(1, state, "test-session");

@@ -1,6 +1,5 @@
 package com.parse;
 
-import com.parse.livequery.BuildConfig;
 import com.parse.livequery.LiveQueryException;
 import com.parse.livequery.ParseLiveQueryClient;
 import com.parse.livequery.ParseLiveQueryClientCallbacks;
@@ -19,7 +18,9 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
-import org.robolectric.util.Transcript;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import java.io.IOException;
 import java.net.URI;
@@ -31,11 +32,11 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 import static org.mockito.AdditionalMatchers.and;
 import static org.mockito.AdditionalMatchers.not;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.contains;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(constants = BuildConfig.class, sdk = 21)
+@Config(sdk = 21)
 public class TestParseLiveQueryClient {
 
     private WebSocketClient webSocketClient;
@@ -582,6 +583,27 @@ public class TestParseLiveQueryClient {
         jsonObject.put("requestId", requestId);
         jsonObject.put("object", PointerEncoder.get().encodeRelatedObject(parseObject));
         return jsonObject;
+    }
+
+    /**
+     * Minimal replacement for the removed {@code org.robolectric.util.Transcript}.
+     * Records string events and asserts exact sequences (consuming them).
+     */
+    private static class Transcript {
+        private final List<String> events = new ArrayList<>();
+
+        void add(String event) {
+            events.add(event);
+        }
+
+        void assertNoEventsSoFar() {
+            assertTrue("expected no events but got: " + events, events.isEmpty());
+        }
+
+        void assertEventsSoFar(String... expected) {
+            assertEquals(Arrays.asList(expected), new ArrayList<>(events));
+            events.clear();
+        }
     }
 
     private static class LoggingCallbacks implements ParseLiveQueryClientCallbacks {

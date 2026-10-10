@@ -1,9 +1,11 @@
 # Task 01: Align Gradle wrapper with AGP and CI
 
-**File:** `tasks/backlog/01-align-gradle-wrapper.md`
+**File:** `tasks/archive/01-align-gradle-wrapper.md`
 **Source:** manager
 **Type:** improvement
-**Status:** open
+**Status:** superseded
+**Superseded-By:** `05-release-readiness-bundle`
+**Superseded-At:** `2026-10-10`
 
 ## Goal
 
@@ -50,6 +52,8 @@ The task is NOT done unless ALL of the following are true (unconditional, applie
 - **Rollback plan:** Revert `gradle-wrapper.properties` + CI file; re-run fast loop.
 
 ---
+
+> **Superseded:** This task was bundled into META task `05-release-readiness-bundle` and archived on 2026-10-10. See `tasks/backlog/05-release-readiness-bundle.md` (or its Kanban successor) for the unified execution. History preserved via `git log --follow -- tasks/archive/01-align-gradle-wrapper.md`.
 
 ## Execution Log & Reasoning
 

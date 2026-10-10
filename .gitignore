@@ -1,6 +1,10 @@
 # built application files
 *.apk
 *.ap_
+*.aab
+
+# built library artifacts (this repo ships an Android library)
+*.aar
 
 # files for the dex VM
 *.dex
@@ -22,6 +26,8 @@ local.properties
 *.iws
 classes
 gen-external-apklibs
+captures/
+*.hprof
 
 # Gradle
 .gradle
@@ -35,9 +41,20 @@ testData
 testCache
 server.config
 
+# Merge leftovers
+*.orig
+*.rej
+
+# OS and editor noise
+.DS_Store
+.vscode/
+
 # Jacoco
 jacoco.exec
 
 
 # Custom Context MCP reports
 context-reports/
+
+# Brain session transcripts (runtime state, never committed)
+tasks/.sessions/

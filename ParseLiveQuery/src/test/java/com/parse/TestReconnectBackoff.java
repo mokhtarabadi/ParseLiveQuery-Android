@@ -61,8 +61,9 @@ public class TestReconnectBackoff {
 
     @Test
     public void oldIntArithmeticWouldOverflow() {
-        // Demonstrates the bug: int math produces negative value at attempt=30
-        int oldDelay = BASE_RECONNECT_DELAY_MS * (int) Math.pow(2, 30);
+        // Demonstrates the bug: int math overflows at attempt=22
+        // (1000 * 2^22 = 4194304000 exceeds Integer.MAX_VALUE and wraps negative).
+        int oldDelay = BASE_RECONNECT_DELAY_MS * (int) Math.pow(2, 22);
         assertTrue("Old int arithmetic overflows to negative: " + oldDelay, oldDelay < 0);
 
         // Our fix stays positive

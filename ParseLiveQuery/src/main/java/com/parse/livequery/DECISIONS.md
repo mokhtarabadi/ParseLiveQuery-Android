@@ -1,5 +1,19 @@
 # Architectural Decisions: com.parse.livequery
 
+## [2026-10-10] ADR-004: Injectable clock for reconnect timing
+
+- **Context:** Two direct `System.currentTimeMillis()` reads lived on the reconnect path, violating the Clock Injection rule and blocking deterministic tests.
+- **Decision:** New public `ParseLiveQueryClock` interface with a `SYSTEM` default; `ParseLiveQueryClientImpl` takes it via a new constructor overload and a new `Factory.getClient` overload. All prior overloads delegate to the system clock, so the public API stays backward compatible.
+- **Consequences:** Tests can inject a fake clock; see `TestParseLiveQueryClock`.
+- **Rollback:** Drop the overloads and restore direct reads; single-file revert.
+
+## [2026-10-10] ADR-005: Keep reconnecting with zero subscriptions (disputed QA revert)
+
+- **Context:** QA asked to restore the `subscriptions.isEmpty()` guard in `scheduleReconnect`. The guard was deliberately removed (see `9d2ef80` era notes) so the client keeps retrying even when the subscription map is momentarily empty, and reconnects on socket close regardless of map state.
+- **Decision:** Keep the guard out; cover the empty path with `connectedWithEmptySubscriptions_sendsNothing` instead of reverting.
+- **Consequences:** Reconnect attempts continue with zero subscriptions (by design); the connected handler iterates an empty map and sends nothing.
+- **Rollback:** Re-add `|| subscriptions.isEmpty()` to the `scheduleReconnect` early return; no data impact.
+
 ## [2026-10-10] ADR-001: Initial Slice Baseline
 
 - **Context:** Baseline documentation initialized via init-folder-docs during Phase 0.

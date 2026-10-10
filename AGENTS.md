@@ -6,12 +6,15 @@ Parse LiveQuery Client for Android. Java Android library (`ParseLiveQuery` modul
 
 ## Setup & Dev Commands
 
-- Build: `./gradlew :ParseLiveQuery:assembleDebug --no-daemon` (full gate: `./gradlew --no-daemon clean jacocoTestReport`)
-- Test: `./gradlew :ParseLiveQuery:testDebugUnitTest --no-daemon` (fast loop); CI gate: `./gradlew --no-daemon clean jacocoTestReport` (JDK 11)
+- Build: `./gradlew :ParseLiveQuery:assembleDebug --no-daemon` (full gate: `./gradlew --no-daemon clean :ParseLiveQuery:testDebugUnitTest :ParseLiveQuery:createDebugUnitTestCoverageReport`)
+- Test: `./gradlew :ParseLiveQuery:testDebugUnitTest --no-daemon` (fast loop); CI gate adds `clean` plus `createDebugUnitTestCoverageReport` (JDK 17)
 - Lint: `./gradlew spotlessCheck --no-daemon`
 - Dev: N/A (library — no dev server; verify via unit tests)
 
 ## Actionable Guardrails (Do's & Don'ts)
+
+- **Don't** start any task from the Orchestrator text alone.
+  -> **Do** read `AGENTS.md` first, then `docs/architecture.md`, `docs/data_model.md`, and `docs/conventions.md` before planning (`DESIGN.md` is absent here — library with no UI surface, skipped gracefully).
 
 - **Don't** bypass the reconnect backoff (`scheduleReconnect`/`cancelPendingReconnect`) or call `new Date()`/direct clocks in business logic.
   -> **Do** route time via injectable `Clock` and keep reconnect discipline (see `docs/conventions.md`).
@@ -36,6 +39,10 @@ Parse LiveQuery Client for Android. Java Android library (`ParseLiveQuery` modul
   -> **Do** load the `prompt-refactor` skill to translate and expand the intent into an elite English spec first. (Note: If you receive a standard XML task block, skip this and execute normally).
 - **Don't** attempt to resolve cross-disciplinary ambiguity within a single persona.
   -> **Do** trigger the Multi-Agent Brainstorming Loop if the Manager explicitly requests brainstorming or a task exhibits cross-disciplinary ambiguity. Interpret the `<brainstorming_session>` results in backlog tasks as non-functional guidelines that govern execution.
+- **Don't** stage blindly with `git add -A .` or leave shared-file hunks mixed across tasks.
+  -> **Do** pass an explicit `modified_files` list to `custom_context_stage_and_inject_diff`; for shared files unstage foreign hunks via `custom_context_unstage_files`, redo hunk surgery, then re-stage with `skip_add=True`. `git commit`/`checkout`/`push` stay forbidden everywhere.
+- **Don't** keep deprecated `Manager Decisions` / `Admin Decision` sections in AGENTS.md or active task files.
+  -> **Do** purge deprecated decision sections when found and record the purge; never recreate them.
 - **Don't** silently alter slice architecture or domain invariants without updating the sibling README.md and appending a dated ADR to DECISIONS.md.
   -> **Do** inspect sibling README.md and DECISIONS.md before modifying code, and keep them in sync with implementation changes.
 

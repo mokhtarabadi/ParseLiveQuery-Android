@@ -46,5 +46,9 @@ public interface ParseLiveQueryClient {
             return new ParseLiveQueryClientImpl(uri, webSocketClientFactory, taskExecutor);
         }
 
+        public static ParseLiveQueryClient getClient(URI uri, WebSocketClientFactory webSocketClientFactory, Executor taskExecutor, ParseLiveQueryClock clock) {
+            return new ParseLiveQueryClientImpl(uri, webSocketClientFactory, taskExecutor, clock);
+        }
+
     }
 }

@@ -1,9 +1,11 @@
 # Task 02: Inject Clock for reconnect backoff
 
-**File:** `tasks/backlog/02-inject-clock-reconnect-backoff.md`
+**File:** `tasks/archive/02-inject-clock-reconnect-backoff.md`
 **Source:** manager
 **Type:** improvement
-**Status:** open
+**Status:** superseded
+**Superseded-By:** `05-release-readiness-bundle`
+**Superseded-At:** `2026-10-10`
 
 ## Goal
 
@@ -50,6 +52,8 @@ The task is NOT done unless ALL of the following are true (unconditional, applie
 - **Rollback plan:** Revert to system clock; keep fake-Clock tests skipped.
 
 ---
+
+> **Superseded:** This task was bundled into META task `05-release-readiness-bundle` and archived on 2026-10-10. See `tasks/backlog/05-release-readiness-bundle.md` (or its Kanban successor) for the unified execution. History preserved via `git log --follow -- tasks/archive/02-inject-clock-reconnect-backoff.md`.
 
 ## Execution Log & Reasoning
 
