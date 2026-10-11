@@ -12,6 +12,7 @@ Realtime subscription engine for Parse queries over OkHttp WebSocket.
 
 - `ParseLiveQueryClient.java` — Public interface + `Factory.getClient` overloads.
 - `ParseLiveQueryClientImpl.java` — Protocol engine; thread-safe subscriptions + reconnect.
+- `ParseLiveQueryClock.java` — Injectable wall-clock plus scheduler; `SYSTEM` default, fakes in tests.
 - `Subscription.java` — requestId + frozen query state + callback lists.
 - `SubscriptionHandling.java` — Handler interface + `Event` enum (CREATE/UPDATE/ENTER/LEAVE/DELETE).
 - `ClientOperation.java` / `ConnectClientOperation.java` / `SubscribeClientOperation.java` / `UnsubscribeClientOperation.java` — Wire JSON encoders.

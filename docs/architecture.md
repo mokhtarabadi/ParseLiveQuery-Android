@@ -75,14 +75,14 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 5. External Integrations
 
 - `com.github.parse-community.Parse-SDK-Android:parse:4.4.0` (api) — `ParseQuery`, `ParseObject`, `PointerEncoder`.
-- `com.squareup.okhttp3:okhttp:5.5.0` (api) — WebSocket transport.
+- `com.squareup.okhttp3:okhttp:5.4.0` (api) — WebSocket transport (capped: okhttp-android 5.5.0 requires compileSdk 37).
 - Test: `robolectric:4.17`, `junit:4.13.2`, `mockito-core:5.24.0`, `jsonassert:1.5.3`.
 
 ## 6. Deployment & Infrastructure
 
 - JitPack artifact `com.github.parse-community:ParseLiveQuery-Android`.
 - CI (`.github/workflows/ci.yml`): `check-lint` (JDK 17 + `spotlessCheck` with upstream ratchet), `check-gradlewrapper`, `check-build` (`clean` + unit tests + AGP built-in coverage report + codecov). Checkout uses full history (`fetch-depth: 0`) so the Spotless ratchet can resolve `origin/master`.
-- Android: `compileSdk/targetSdk 35`, `minSdk 23`, Java 8, `abortOnError false`.
+- Android: `compileSdk` 36, `targetSdk` 35, `minSdk` 23, Java 8, `abortOnError false`.
 
 ## 7. Security Considerations
 
@@ -98,7 +98,8 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 
 ## 9. Future Considerations
 
-- Dependency refresh (2026-10-10): OkHttp 5.5.0, Robolectric 4.17, Mockito 5.24.0, jsonassert 1.5.3, AGP 9.4.1; parse SDK 4.4.0 and JUnit 4.13.2 already latest.
+- Dependency refresh (2026-10-10): OkHttp 5.4.0, Robolectric 4.17, Mockito 5.24.0, jsonassert 1.5.3, AGP 9.4.1, compileSdk 36; parse SDK 4.4.0 and JUnit 4.13.2 already latest.
+- JitPack publishing: `maven-publish` with explicit `release` publication (`components.release`, artifactId override); verified locally into mavenLocal with JitPack flags.
 - `Clock` injection done: `ParseLiveQueryClock` drives reconnect reads and scheduling, covered by deterministic tests.
 - Kotlin/Compose: out of scope — library stays Java.
 

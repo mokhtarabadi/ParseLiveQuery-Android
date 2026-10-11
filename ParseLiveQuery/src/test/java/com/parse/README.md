@@ -11,6 +11,8 @@ Unit verification for the LiveQuery client via Robolectric + JUnit4 + Mockito.
 ## Files
 
 - `livequery/TestSubscribeOperationFields.java` — Subscribe JSON shape + objectId injection.
+- `livequery/TestParseLiveQueryClock.java` — Clock contract: system sanity plus deterministic fake.
+- `TestClockWiring.java` — Impl wiring: injected clock observed, deterministic backoff, stale-socket drop.
 - `TestParseLiveQueryClient.java` — Core client behavior (god-node adjacency: onError/createInstance).
 - `TestAdversarialFixes.java` — Race/edge fixes.
 - `TestReconnectBackoff.java` — Backoff scheduling/cancel discipline.
