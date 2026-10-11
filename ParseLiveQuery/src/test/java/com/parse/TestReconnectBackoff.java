@@ -52,7 +52,7 @@ public class TestReconnectBackoff {
     @Test
     public void delayNeverNegative() {
         // The old code used int arithmetic: BASE * (int)Math.pow(2, attempts)
-        // At attempt=30 this overflows int and produces a NEGATIVE value.
+        // At attempt=22 this overflows int and produces a NEGATIVE value.
         for (int i = 0; i <= 100; i++) {
             long delay = computeDelay(i);
             assertTrue("delay=" + delay + " at attempt=" + i + " is negative!", delay >= 0);

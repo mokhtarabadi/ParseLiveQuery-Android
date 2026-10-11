@@ -19,6 +19,6 @@ Unit verification for the LiveQuery client via Robolectric + JUnit4 + Mockito.
 
 ## Key Risks & Invariants
 
-- Tests must run under `./gradlew :ParseLiveQuery:testDebugUnitTest`; full gate is `clean jacocoTestReport` on JDK 11.
+- Tests must run under `./gradlew :ParseLiveQuery:testDebugUnitTest`; full gate adds `clean` plus `createDebugUnitTestCoverageReport` on JDK 17.
 - Backoff tests are timing-sensitive — prefer injected executors over sleeps.
 - Do not assert on `sessionToken` values in logs.

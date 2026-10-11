@@ -9,6 +9,7 @@ ParseLiveQuery-Android/
 ├── ParseLiveQuery/src/main/java/com/parse/livequery/
 │   ├── ParseLiveQueryClient.java          # Public interface + Factory.getClient overloads
 │   ├── ParseLiveQueryClientImpl.java      # Protocol state machine, reconnect, dispatch
+│   ├── ParseLiveQueryClock.java           # Injectable clock + scheduler
 │   ├── Subscription.java                  # requestId + query + callback lists
 │   ├── SubscriptionHandling.java           # Public handler interface + Event enum
 │   ├── ClientOperation.java               # Abstract getJSONObjectRepresentation
@@ -21,7 +22,9 @@ ParseLiveQuery-Android/
 │   ├── ParseLiveQueryClientCallbacks.java # Connection-level listener
 │   └── LiveQueryException.java            # Protocol error type
 ├── ParseLiveQuery/src/test/java/com/parse/
+│   ├── livequery/TestParseLiveQueryClock.java
 │   ├── livequery/TestSubscribeOperationFields.java
+│   ├── TestClockWiring.java
 │   ├── TestParseLiveQueryClient.java
 │   ├── TestAdversarialFixes.java
 │   ├── TestReconnectBackoff.java
@@ -29,7 +32,7 @@ ParseLiveQuery-Android/
 │   └── ImmediateExecutor.java
 ├── docs/ (conventions.md, architecture.md, data_model.md)
 ├── tasks/ (backlog, in-progress, qa, completed, archive)
-├── AGENTS.md, opencode.json, CHANGELOG.md
+├── AGENTS.md, opencode.json, jitpack.yml, CHANGELOG.md
 └── .github/workflows/ci.yml
 ```
 
@@ -48,7 +51,7 @@ Flow: `Factory.getClient()` → `connectIfNeeded()` → `ConnectClientOperation`
 
 ### 3.1 Public API surface
 
-- `ParseLiveQueryClient` (`ParseLiveQueryClient.java`): `subscribe`, `unsubscribe` (x2), `connectIfNeeded`, `reconnect`, `disconnect`, `registerListener`/`unregisterListener`, `Factory.getClient` (5 overloads: default URI from `Parse.initialize`, custom `URI`, custom `WebSocketClientFactory`, custom `Executor`).
+- `ParseLiveQueryClient` (`ParseLiveQueryClient.java`): `subscribe`, `unsubscribe` (x2), `connectIfNeeded`, `reconnect`, `disconnect`, `registerListener`/`unregisterListener`, `Factory.getClient` (6 overloads: default URI from `Parse.initialize`, custom `URI`, custom `WebSocketClientFactory`, custom `Executor`, plus clock-injecting variant).
 - `SubscriptionHandling` (`SubscriptionHandling.java`): `handleEvents`, `handleEvent(Event, cb)`, `handleError`, `handleSubscribe`, `handleUnsubscribe`, `getRequestId`.
 
 ### 3.2 Protocol engine
@@ -96,7 +99,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 9. Future Considerations
 
 - Dependency refresh (2026-10-10): OkHttp 5.5.0, Robolectric 4.17, Mockito 5.24.0, jsonassert 1.5.3, AGP 9.4.1; parse SDK 4.4.0 and JUnit 4.13.2 already latest.
-- `Clock` injection for backoff to satisfy datetime standard and enable deterministic tests.
+- `Clock` injection done: `ParseLiveQueryClock` drives reconnect reads and scheduling, covered by deterministic tests.
 - Kotlin/Compose: out of scope — library stays Java.
 
 ## 10. Fork Divergence vs Upstream (parse-community)

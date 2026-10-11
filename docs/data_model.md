@@ -57,7 +57,7 @@ Sent once after socket `onOpen`. Server replies `{"op":"connected"}` — client 
 
 - `requestId: int` — wire correlation key.
 - `query: ParseQuery<T>` + frozen `state: ParseQuery.State<T>` (built at construction; later query mutation does not affect the wire payload).
-- Callback lists: `handleEventsCallbacks`, `handleErrorCallbacks`, `handleSubscribeCallbacks`, `handleUnsubscribeCallbacks` (ArrayList — accessed on callback executor).
+- Callback lists: `handleEventsCallbacks`, `handleErrorCallbacks`, `handleSubscribeCallbacks`, `handleUnsubscribeCallbacks` (`CopyOnWriteArrayList` — safe under concurrent register plus dispatch).
 
 ### Client session state (`ParseLiveQueryClientImpl`)
 
