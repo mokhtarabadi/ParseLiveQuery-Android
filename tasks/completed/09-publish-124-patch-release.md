@@ -1,9 +1,9 @@
 # Task 09: Publish 1.2.4 patch release on JitPack
 
-**File:** `tasks/qa/09-publish-124-patch-release.md`
+**File:** `tasks/completed/09-publish-124-patch-release.md`
 **Source:** manager
 **Type:** feature
-**Status:** open
+**Status:** closed
 
 ## Goal
 
