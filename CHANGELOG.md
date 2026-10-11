@@ -1,6 +1,10 @@
 ## Changelog
 
 ### master
+
+### 1.2.5
+- Depend on own fork SDK 4.4.3 with full module publications; AAR versionName 1.2.5
+- Adopt fork SDK 4.4.3 with full module publications
 - Verify dep round: all direct deps already latest-safe; OkHttp held at 5.4.0 pending compileSdk 37 coverage
 
 ### 1.2.4

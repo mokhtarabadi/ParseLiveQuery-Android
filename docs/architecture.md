@@ -74,7 +74,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 
 ## 5. External Integrations
 
-- `com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.2` (api) — own fork, JitPack-built; `ParseQuery`, `ParseObject`, `PointerEncoder`.
+- `com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.3` (api) — own fork, JitPack-built with full module publications; `ParseQuery`, `ParseObject`, `PointerEncoder`.
 - `com.squareup.okhttp3:okhttp:5.4.0` (api) — WebSocket transport (capped: okhttp-android 5.5.0 requires compileSdk 37).
 - Test: `robolectric:4.17`, `junit:4.13.2`, `mockito-core:5.24.0`, `jsonassert:1.5.3`.
 
