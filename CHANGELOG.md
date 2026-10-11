@@ -1,6 +1,9 @@
 ## Changelog
 
 ### master
+
+### 1.2.4
+- Republish 1.2.3 with the JitPack publishing fix (maven-publish release publication); 1.2.3 errored on JitPack from the pre-fix commit and its result is cached
 - Audit round two: slice README coverage for clock files plus ADR-006 for JitPack publishing
 - Fix JitPack publishing: maven-publish release publication with artifactId override; OkHttp capped at 5.4.0 with compileSdk 36
 - Review follow-ups: sync architecture tree and overload count, CopyOnWriteArrayList in data model, current gate in test docs, chronological ADRs
