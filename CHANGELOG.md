@@ -1,6 +1,7 @@
 ## Changelog
 
 ### master
+- Verify dep round: all direct deps already latest-safe; OkHttp held at 5.4.0 pending compileSdk 37 coverage
 
 ### 1.2.4
 - Republish 1.2.3 with the JitPack publishing fix (maven-publish release publication); 1.2.3 errored on JitPack from the pre-fix commit and its result is cached
