@@ -58,43 +58,5 @@ Release prep: AAR versionName 1.2.5 with versionCode 3 plus CHANGELOG entry; re-
 ## Factual Git Diff
 
 <!-- BEGIN_GIT_DIFF -->
-```diff
-diff --git a/CHANGELOG.md b/CHANGELOG.md
-index 9628d28..ceee557 100644
---- a/CHANGELOG.md
-+++ b/CHANGELOG.md
-@@ -1,6 +1,7 @@
- ## Changelog
- 
- ### master
-+- Adopt fork SDK 4.4.3 with full module publications
- - Verify dep round: all direct deps already latest-safe; OkHttp held at 5.4.0 pending compileSdk 37 coverage
- 
- ### 1.2.4
-diff --git a/ParseLiveQuery/build.gradle b/ParseLiveQuery/build.gradle
-index c2f2156..1e7170d 100644
---- a/ParseLiveQuery/build.gradle
-+++ b/ParseLiveQuery/build.gradle
-@@ -44,7 +44,7 @@ android {
- }
- 
- dependencies {
--    api "com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.2"
-+    api "com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.3"
-     api "com.squareup.okhttp3:okhttp:5.4.0"
- 
-     testImplementation "org.robolectric:robolectric:4.17"
-diff --git a/docs/architecture.md b/docs/architecture.md
-index 6e7c376..6c36926 100644
---- a/docs/architecture.md
-+++ b/docs/architecture.md
-@@ -74,7 +74,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
- 
- ## 5. External Integrations
- 
--- `com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.2` (api) — own fork, JitPack-built; `ParseQuery`, `ParseObject`, `PointerEncoder`.
-+- `com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.3` (api) — own fork, JitPack-built with full module publications; `ParseQuery`, `ParseObject`, `PointerEncoder`.
- - `com.squareup.okhttp3:okhttp:5.4.0` (api) — WebSocket transport (capped: okhttp-android 5.5.0 requires compileSdk 37).
- - Test: `robolectric:4.17`, `junit:4.13.2`, `mockito-core:5.24.0`, `jsonassert:1.5.3`.
-```
+**Factual Git Diff:** Stored in Commit Hash: `f3ae0e235468fde71947c115672c2a1a2fa6de9a`
 <!-- END_GIT_DIFF -->
