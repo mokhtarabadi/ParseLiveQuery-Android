@@ -90,8 +90,25 @@ public class TestParseLiveQueryClient {
 
     @After
     public void tearDown() throws Exception {
+        clearForkSessionTokenCache();
         ParseCorePlugins.getInstance().reset();
         ParsePlugins.reset();
+    }
+
+    /**
+     * The forked SDK caches the session token in a process-wide static.
+     * Clear it so unstubbed tests observe a logged-out client deterministically.
+     * No-op on SDK builds without the cache field.
+     */
+    private static void clearForkSessionTokenCache() {
+        try {
+            java.lang.reflect.Field field =
+                    ParseUser.class.getDeclaredField("sCachedSessionToken");
+            field.setAccessible(true);
+            field.set(null, null);
+        } catch (ReflectiveOperationException ignored) {
+            // Upstream SDK without the token cache: nothing to clear.
+        }
     }
 
     @Test

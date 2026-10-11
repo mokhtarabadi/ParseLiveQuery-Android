@@ -11,8 +11,8 @@ android {
     defaultConfig {
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.2.4"
         consumerProguardFiles "release-proguard.pro"
     }
 
@@ -44,7 +44,7 @@ android {
 }
 
 dependencies {
-    api "com.github.parse-community.Parse-SDK-Android:parse:4.4.0"
+    api "com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.2"
     api "com.squareup.okhttp3:okhttp:5.4.0"
 
     testImplementation "org.robolectric:robolectric:4.17"

@@ -69,6 +69,14 @@ public class TestClockWiring {
 
     @After
     public void tearDown() throws Exception {
+        try {
+            java.lang.reflect.Field field =
+                    ParseUser.class.getDeclaredField("sCachedSessionToken");
+            field.setAccessible(true);
+            field.set(null, null);
+        } catch (ReflectiveOperationException ignored) {
+            // Upstream SDK without the token cache: nothing to clear.
+        }
         ParseCorePlugins.getInstance().reset();
         ParsePlugins.reset();
     }
