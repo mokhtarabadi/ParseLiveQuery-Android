@@ -81,7 +81,8 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 6. Deployment & Infrastructure
 
 - JitPack artifact `com.github.parse-community:ParseLiveQuery-Android`.
-- CI (`.github/workflows/ci.yml`): `check-lint` (JDK 17 + `spotlessCheck` with upstream ratchet), `check-gradlewrapper`, `check-build` (`clean` + unit tests + AGP built-in coverage report + codecov). Checkout uses full history (`fetch-depth: 0`) so the Spotless ratchet can resolve `origin/master`.
+- CI (`.github/workflows/ci.yml`): `check-lint` (JDK 17 + `spotlessCheck` with upstream ratchet), `check-gradlewrapper`, `check-build` (`clean` + unit tests + AGP built-in coverage report + codecov). Checkout uses full history (`fetch-depth: 0`) so the Spotless ratchet can resolve `origin/master`. Actions track current majors (checkout v4, cache v4, wrapper-validation v3).
+- Reconnect policy: infinite retry with capped exponential backoff (1s doubling to 30s) plus clock-driven jitter (0-249ms via injected `ParseLiveQueryClock`); survives close and error unless the user disconnects.
 - Android: `compileSdk` 36, `targetSdk` 35, `minSdk` 23, Java 8, `abortOnError false`.
 
 ## 7. Security Considerations

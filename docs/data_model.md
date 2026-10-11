@@ -47,7 +47,7 @@ Sent once after socket `onOpen`. Server replies `{"op":"connected"}` — client 
 | `subscribed` | `{requestId}` accepted | `handleSubscribedEvent` → `didSubscribe` |
 | `unsubscribed` | `{requestId}` removed | `handleUnsubscribedEvent` → `didUnsubscribe` |
 | `create` / `update` / `enter` / `leave` / `delete` | Object event + `{requestId, object}` | `handleObjectEvent(Event, json)` → decode `ParseObject` → `didReceive` |
-| `error` | `{requestId?, code, message}` | `handleErrorEvent` → `didEncounter(LiveQueryException)`; no requestId → `dispatchServerError` |
+| `error` | `{requestId?, code, message}` | `handleErrorEvent` → `didEncounter(LiveQueryException)`; missing requestId still reaches `dispatchServerError` as a global error |
 
 `Subscription.Event` enum mirrors the five object ops.
 

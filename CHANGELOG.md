@@ -2,6 +2,8 @@
 
 ### master
 
+- Harden deep-review fixes: redact sessionToken in logs, route global errors, break transport lock order, behavioral adversarial tests, clock jitter on infinite backoff, CI majors current; keep fork SDK 4.4.3 (4.4.4 unresolved on JitPack)
+
 ### 1.2.5
 - Depend on own fork SDK 4.4.3 with full module publications; AAR versionName 1.2.5
 - Adopt fork SDK 4.4.3 with full module publications

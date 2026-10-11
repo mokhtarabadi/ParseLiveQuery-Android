@@ -230,6 +230,19 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         return Arrays.asList(states).contains(getWebSocketState());
     }
 
+    /** Masks sessionToken for logs; the wire payload is unchanged. */
+    private static String redactForLog(JSONObject json) {
+        try {
+            if (json.has("sessionToken")) {
+                JSONObject copy = new JSONObject(json.toString());
+                copy.put("sessionToken", "***");
+                return copy.toString();
+            }
+        } catch (JSONException ignored) {
+        }
+        return json.toString();
+    }
+
     private Task<Void> handleOperationAsync(final String message) {
         return Task.call(new Callable<Void>() {
             public Void call() throws Exception {
@@ -261,7 +274,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                 JSONObject jsonEncoded = clientOperation.getJSONObjectRepresentation();
                 String jsonString = jsonEncoded.toString();
                 if (Parse.getLogLevel() <= Parse.LOG_LEVEL_DEBUG) {
-                    Log.d(LOG_TAG, "Sending over websocket: " + jsonString);
+                    Log.d(LOG_TAG, "Sending over websocket: " + redactForLog(jsonEncoded));
                 }
                 try {
                     clientSnapshot.send(jsonString);
@@ -401,15 +414,19 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
     private <T extends ParseObject> void handleErrorEvent(JSONObject jsonObject) throws JSONException {
         int requestId = jsonObject.optInt("requestId", -1);
-        if (requestId < 0) {
-            Log.w(LOG_TAG, "Error event without requestId: " + jsonObject);
-            return;
-        }
         int code = jsonObject.optInt("code", -1);
         String error = jsonObject.optString("error", "");
         boolean reconnect = jsonObject.optBoolean("reconnect", false);
-        final Subscription<T> subscription = subscriptionForRequestId(requestId);
         LiveQueryException exc = new LiveQueryException.ServerReportedException(code, error, reconnect);
+        if (requestId < 0) {
+            Log.w(LOG_TAG, "Error event without requestId: code=" + code + " error=" + error);
+            dispatchServerError(exc);
+            if (reconnect && !userInitiatedDisconnect) {
+                scheduleReconnect();
+            }
+            return;
+        }
+        final Subscription<T> subscription = subscriptionForRequestId(requestId);
 
         if (subscription != null) {
             subscription.didEncounter(exc, subscription.getQuery());
@@ -636,7 +653,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         // F4: Clamp reconnectAttempts safely to prevent negative arithmetic on overflow
         int clampedAttempts = Math.max(0, Math.min(reconnectAttempts, 30));
         // Use long arithmetic: 1000L * 2^clampedAttempts — safe up to 2^30
-        long delay = Math.min(BASE_RECONNECT_DELAY_MS * (long) Math.pow(2, clampedAttempts), MAX_RECONNECT_DELAY_MS);
+        long baseDelay = Math.min(BASE_RECONNECT_DELAY_MS * (long) Math.pow(2, clampedAttempts), MAX_RECONNECT_DELAY_MS);
+        // Clock-driven jitter (0-249ms) to avoid retry storms; deterministic under fake clocks.
+        long jitter = Math.abs(clock.currentTimeMillis() % 250);
+        long delay = Math.min(baseDelay + jitter, MAX_RECONNECT_DELAY_MS);
         reconnectAttempts++;
 
         Log.d(LOG_TAG, "[RECONNECT] Scheduling reconnect in " + delay + "ms (Attempt " + reconnectAttempts

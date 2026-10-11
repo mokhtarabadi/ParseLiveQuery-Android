@@ -110,31 +110,41 @@ public class OkHttp3SocketClientFactory implements WebSocketClientFactory {
         }
 
         @Override
-        public synchronized void send(String message) {
-            // Fix Issue #104: Only send when connected and WebSocket is valid
-            if (state == State.CONNECTED && webSocket != null) {
+        public void send(String message) {
+            // Fix lock order: snapshot state under monitor, invoke callbacks outside it.
+            // Calling onError while holding the socket monitor deadlocks against
+            // ParseLiveQueryClientImpl (socket -> client vs client -> socket).
+            final WebSocketClientCallback callback;
+            final State observed;
+            final WebSocket socket;
+            synchronized (this) {
+                observed = state;
+                socket = webSocket;
+                callback = webSocketClientCallback;
+            }
+            if (observed == State.CONNECTED && socket != null) {
                 try {
                     // Fix Step 4: Check boolean return — false means queue full or socket closed
-                    boolean sent = webSocket.send(message);
+                    boolean sent = socket.send(message);
                     if (!sent) {
                         Log.w(LOG_TAG, "WebSocket.send() returned false — queue full or socket closed");
                         java.io.IOException failure =
                                 new java.io.IOException("WebSocket queue full or socket closed");
-                        webSocketClientCallback.onError(failure);
+                        callback.onError(failure);
                         throw new IllegalStateException(failure);
                     }
                 } catch (RuntimeException e) {
                     throw e;
                 } catch (Exception e) {
                     Log.e(LOG_TAG, "Failed to send WebSocket message", e);
-                    webSocketClientCallback.onError(e);
+                    callback.onError(e);
                     throw new IllegalStateException(e);
                 }
             } else {
-                Log.w(LOG_TAG, "Cannot send message: state=" + state + ", webSocket=" + (webSocket != null ? "valid" : "null"));
+                Log.w(LOG_TAG, "Cannot send message: state=" + observed + ", webSocket=" + (socket != null ? "valid" : "null"));
                 java.io.IOException failure = new java.io.IOException(
-                        "WebSocket not connected: state=" + state);
-                webSocketClientCallback.onError(failure);
+                        "WebSocket not connected: state=" + observed);
+                callback.onError(failure);
                 throw new IllegalStateException(failure);
             }
         }

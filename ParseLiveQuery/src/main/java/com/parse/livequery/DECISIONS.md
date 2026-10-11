@@ -41,3 +41,10 @@
 - **Decision:** maven-publish with an explicit `release` publication from `components.release` plus artifactId override; cap OkHttp at 5.4.0 with compileSdk 36.
 - **Consequences:** Local publish verified with JitPack flags (AAR plus sources plus pom under release coordinates).
 - **Rollback:** Drop the publication block; JitPack falls back to pom-only failure.
+
+## [2026-10-11] ADR-007: Deep-review hardening plus SDK 4.4.4
+
+- **Context:** Deep review found token logging, dropped global errors, transport lock-order risk, brittle source-text tests, jitter-free retry, and stale CI majors.
+- **Decision:** Redact `sessionToken` in send-path logs; route global errors to `dispatchServerError`; invoke transport callbacks outside the socket monitor; replace source-text asserts with behavioral tests; add clock-driven jitter (0-249ms) to infinite capped backoff; bump CI to checkout v4, cache v4, wrapper-validation v3; keep fork SDK at 4.4.3 (4.4.4 not published on JitPack at verification time).
+- **Consequences:** Logs stay token-free; global errors reach listeners; no socket-to-client lock inversion; suite asserts behavior; retry storms dampened; CI tracks current majors.
+- **Rollback:** Revert single concerns independently; drop SDK to 4.4.3 if JitPack resolution fails.
