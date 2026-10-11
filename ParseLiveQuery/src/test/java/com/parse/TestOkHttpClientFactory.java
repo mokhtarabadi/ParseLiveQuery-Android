@@ -19,6 +19,9 @@ import java.net.URI;
 import okhttp3.OkHttpClient;
 
 import static com.parse.livequery.WebSocketClient.State.NONE;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -49,7 +52,13 @@ public class TestOkHttpClientFactory {
     public void testClientCloseWithoutOpenShouldBeNoOp()  {
         Assert.assertEquals(NONE, webSocketClient.getState());
         webSocketClient.close();
-        webSocketClient.send("test");
+        try {
+            webSocketClient.send("test");
+            Assert.fail("send() while not connected must fail loudly instead of dropping");
+        } catch (IllegalStateException expected) {
+            // Expected: message loss is reported, never silent.
+        }
+        verify(webSocketClientCallbackMock, times(1)).onError(any(Throwable.class));
         Assert.assertEquals(NONE, webSocketClient.getState());
     }
 

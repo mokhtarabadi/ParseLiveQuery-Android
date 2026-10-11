@@ -28,6 +28,15 @@ public class TestParseLiveQueryClock {
             public long currentTimeMillis() {
                 return 123456789L;
             }
+
+            @Override
+            public void postDelayed(Runnable runnable, long delayMs) {
+                runnable.run();
+            }
+
+            @Override
+            public void removeCallbacks(Runnable runnable) {
+            }
         };
         assertEquals(123456789L, fake.currentTimeMillis());
         assertEquals(fake.currentTimeMillis(), fake.currentTimeMillis());

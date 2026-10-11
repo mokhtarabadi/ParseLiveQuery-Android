@@ -1,6 +1,9 @@
 ## Changelog
 
 ### master
+- Upgrade deps: OkHttp 5.5.0, Robolectric 4.17, Mockito 5.24.0, jsonassert 1.5.3, AGP 9.4.1; Robolectric configs moved to sdk 28
+- Harden reconnect lifecycle: generation-guarded callbacks, clock-driven scheduling, loud send failures, guarded listeners
+- Fix Brain review races: unified reconnect monitor, CopyOnWrite callback lists, faulted send tasks, token-failure routing, tolerant error parsing, DISCONNECTED on transport failure
 - Cognitive-lead audit: staging and index-isolation guardrails plus deprecated-section purge rule in AGENTS.md; sibling-docs pointer on clock test
 - Align wrapper with AGP 9.2.1: Gradle 5.6.4 to 9.8.1; CI JDK 11 to 17; add Spotless check with upstream ratchet; pin JitPack JDK 17
 - Inject ParseLiveQueryClock into the reconnect path with a backward-compatible Factory overload plus deterministic clock tests

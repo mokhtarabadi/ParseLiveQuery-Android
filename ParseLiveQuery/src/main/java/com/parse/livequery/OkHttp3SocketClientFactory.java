@@ -76,6 +76,7 @@ public class OkHttp3SocketClientFactory implements WebSocketClientFactory {
 
             @Override
             public void onFailure(okhttp3.WebSocket webSocket, Throwable t, Response response) {
+                setState(State.DISCONNECTED);
                 webSocketClientCallback.onError(t);
             }
         };
@@ -117,15 +118,24 @@ public class OkHttp3SocketClientFactory implements WebSocketClientFactory {
                     boolean sent = webSocket.send(message);
                     if (!sent) {
                         Log.w(LOG_TAG, "WebSocket.send() returned false — queue full or socket closed");
-                        webSocketClientCallback.onError(
-                            new java.io.IOException("WebSocket queue full or socket closed"));
+                        java.io.IOException failure =
+                                new java.io.IOException("WebSocket queue full or socket closed");
+                        webSocketClientCallback.onError(failure);
+                        throw new IllegalStateException(failure);
                     }
+                } catch (RuntimeException e) {
+                    throw e;
                 } catch (Exception e) {
                     Log.e(LOG_TAG, "Failed to send WebSocket message", e);
                     webSocketClientCallback.onError(e);
+                    throw new IllegalStateException(e);
                 }
             } else {
                 Log.w(LOG_TAG, "Cannot send message: state=" + state + ", webSocket=" + (webSocket != null ? "valid" : "null"));
+                java.io.IOException failure = new java.io.IOException(
+                        "WebSocket not connected: state=" + state);
+                webSocketClientCallback.onError(failure);
+                throw new IllegalStateException(failure);
             }
         }
 

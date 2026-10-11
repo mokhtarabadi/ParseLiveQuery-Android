@@ -72,8 +72,8 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 ## 5. External Integrations
 
 - `com.github.parse-community.Parse-SDK-Android:parse:4.4.0` (api) — `ParseQuery`, `ParseObject`, `PointerEncoder`.
-- `com.squareup.okhttp3:okhttp:5.4.0` (api) — WebSocket transport.
-- Test: `robolectric:4.7`, `junit:4.13.2`, `mockito-core:4.6.1`, `jsonassert:1.5.0`.
+- `com.squareup.okhttp3:okhttp:5.5.0` (api) — WebSocket transport.
+- Test: `robolectric:4.17`, `junit:4.13.2`, `mockito-core:5.24.0`, `jsonassert:1.5.3`.
 
 ## 6. Deployment & Infrastructure
 
@@ -95,7 +95,7 @@ None. Client is stateless except in-memory subscription map and reconnect timer.
 
 ## 9. Future Considerations
 
-- Gradle wrapper modernization (5.6.4 → 8.x) to match AGP 9.2.1.
+- Dependency refresh (2026-10-10): OkHttp 5.5.0, Robolectric 4.17, Mockito 5.24.0, jsonassert 1.5.3, AGP 9.4.1; parse SDK 4.4.0 and JUnit 4.13.2 already latest.
 - `Clock` injection for backoff to satisfy datetime standard and enable deterministic tests.
 - Kotlin/Compose: out of scope — library stays Java.
 

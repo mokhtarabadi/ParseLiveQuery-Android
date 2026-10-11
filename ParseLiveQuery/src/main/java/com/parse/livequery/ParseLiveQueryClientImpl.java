@@ -16,11 +16,11 @@ import org.json.JSONObject;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 
 import com.parse.boltsinternal.Continuation;
@@ -40,7 +40,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     private final WebSocketClient.WebSocketClientCallback webSocketClientCallback;
     private final ParseLiveQueryClock clock;
 
-    private final List<ParseLiveQueryClientCallbacks> mCallbacks = new ArrayList<>();
+    private final List<ParseLiveQueryClientCallbacks> mCallbacks = new CopyOnWriteArrayList<>();
 
     private volatile WebSocketClient webSocketClient;
     private volatile int requestIdCount = 1;
@@ -75,7 +75,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         this.webSocketClientFactory = webSocketClientFactory;
         this.taskExecutor = taskExecutor;
         this.clock = clock;
-        this.webSocketClientCallback = getWebSocketClientCallback();
+        this.webSocketClientCallback = callbackForGeneration(connectionGeneration);
     }
 
     private static URI getDefaultUri() {
@@ -116,7 +116,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         return subscription;
     }
 
-    public void connectIfNeeded() {
+    public synchronized void connectIfNeeded() {
         switch (getWebSocketState()) {
             case CONNECTED:
                 // nothing to do
@@ -175,13 +175,18 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
         userInitiatedDisconnect = false;
         hasReceivedConnected = false;
-        webSocketClient = webSocketClientFactory.createInstance(webSocketClientCallback, uri);
+        connectionGeneration++;
+        webSocketClient = webSocketClientFactory.createInstance(
+                callbackForGeneration(connectionGeneration), uri);
         webSocketClient.open();
     }
 
     @Override
     public synchronized void disconnect() {
         cancelPendingReconnect();
+        // NOTE: no generation bump here — the current socket's own onClose
+        // must still be delivered (expected-disconnect notification); only
+        // reconnect() invalidates predecessors.
         // Fix Issue #82: Safely close even if connection was never opened
         if (webSocketClient != null) {
             try {
@@ -262,6 +267,7 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                     clientSnapshot.send(jsonString);
                 } catch (Exception e) {
                     Log.e(LOG_TAG, "Failed to send operation over WebSocket", e);
+                    throw e;
                 }
                 return null;
             }
@@ -275,8 +281,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
             switch (rawOperation) {
                 case "connected":
-                    hasReceivedConnected = true;
-                    reconnectAttempts = 0; // F4: Reset only after successful LiveQuery handshake
+                    synchronized (ParseLiveQueryClientImpl.this) {
+                        hasReceivedConnected = true;
+                        reconnectAttempts = 0; // F4: Reset only after successful LiveQuery handshake
+                    }
                     long wsDuration = clock.currentTimeMillis() - wsConnectStartMs;
                     Log.v(LOG_TAG, "[WS-TIMING] Connected in " + wsDuration + "ms, sending pending subscription");
                     dispatchConnected();
@@ -324,28 +332,42 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
 
     private void dispatchConnected() {
         for (ParseLiveQueryClientCallbacks callback : mCallbacks) {
-            callback.onLiveQueryClientConnected(this);
+            try {
+                callback.onLiveQueryClientConnected(this);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Listener threw in onLiveQueryClientConnected", e);
+            }
         }
     }
 
     private void dispatchDisconnected() {
         for (ParseLiveQueryClientCallbacks callback : mCallbacks) {
-            callback.onLiveQueryClientDisconnected(this, userInitiatedDisconnect);
+            try {
+                callback.onLiveQueryClientDisconnected(this, userInitiatedDisconnect);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Listener threw in onLiveQueryClientDisconnected", e);
+            }
         }
     }
 
 
     private void dispatchServerError(LiveQueryException exc) {
         for (ParseLiveQueryClientCallbacks callback : mCallbacks) {
-            callback.onLiveQueryError(this, exc);
+            try {
+                callback.onLiveQueryError(this, exc);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Listener threw in onLiveQueryError", e);
+            }
         }
     }
 
     private void dispatchSocketError(Throwable reason) {
-        userInitiatedDisconnect = false;
-
         for (ParseLiveQueryClientCallbacks callback : mCallbacks) {
-            callback.onSocketError(this, reason);
+            try {
+                callback.onSocketError(this, reason);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Listener threw in onSocketError", e);
+            }
         }
 
         dispatchDisconnected();
@@ -378,10 +400,14 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     }
 
     private <T extends ParseObject> void handleErrorEvent(JSONObject jsonObject) throws JSONException {
-        int requestId = jsonObject.getInt("requestId");
-        int code = jsonObject.getInt("code");
-        String error = jsonObject.getString("error");
-        Boolean reconnect = jsonObject.getBoolean("reconnect");
+        int requestId = jsonObject.optInt("requestId", -1);
+        if (requestId < 0) {
+            Log.w(LOG_TAG, "Error event without requestId: " + jsonObject);
+            return;
+        }
+        int code = jsonObject.optInt("code", -1);
+        String error = jsonObject.optString("error", "");
+        boolean reconnect = jsonObject.optBoolean("reconnect", false);
         final Subscription<T> subscription = subscriptionForRequestId(requestId);
         LiveQueryException exc = new LiveQueryException.ServerReportedException(code, error, reconnect);
 
@@ -390,6 +416,10 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         }
 
         dispatchServerError(exc);
+
+        if (reconnect && !userInitiatedDisconnect) {
+            scheduleReconnect();
+        }
     }
 
     private <T extends ParseObject> Subscription<T> subscriptionForRequestId(int requestId) {
@@ -398,9 +428,19 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     }
 
     private <T extends ParseObject> void sendSubscription(final Subscription<T> subscription) {
-        ParseUser.getCurrentSessionTokenAsync().onSuccess(new Continuation<String, Void>() {
+        ParseUser.getCurrentSessionTokenAsync().continueWith(new Continuation<String, Void>() {
             @Override
             public Void then(Task<String> task) throws Exception {
+                if (task.getError() != null) {
+                    Exception tokenError = task.getError();
+                    RuntimeException cause = tokenError instanceof RuntimeException
+                            ? (RuntimeException) tokenError
+                            : new RuntimeException(tokenError);
+                    subscription.didEncounter(new LiveQueryException.UnknownException(
+                            "Error fetching session token", cause),
+                            subscription.getQuery());
+                    return null;
+                }
                 String sessionToken = task.getResult();
                 SubscribeClientOperation<T> op = new SubscribeClientOperation<>(subscription.getRequestId(), subscription.getQueryState(), sessionToken);
 
@@ -409,10 +449,11 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                     public Void then(Task<Void> task) {
                         Exception error = task.getError();
                         if (error != null) {
-                            if (error instanceof RuntimeException) {
-                                subscription.didEncounter(new LiveQueryException.UnknownException(
-                                        "Error when subscribing", (RuntimeException) error), subscription.getQuery());
-                            }
+                            RuntimeException cause = error instanceof RuntimeException
+                                    ? (RuntimeException) error
+                                    : new RuntimeException(error);
+                            subscription.didEncounter(new LiveQueryException.UnknownException(
+                                    "Error when subscribing", cause), subscription.getQuery());
                         }
                         return null;
                     }
@@ -432,32 +473,83 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
     private static final int MAX_RECONNECT_DELAY_MS = 30000;
     private volatile int reconnectAttempts = 0;
     private volatile boolean isReconnecting = false;
-    private Runnable pendingReconnectRunnable;
-    private android.os.Handler reconnectHandler;
+    private volatile Runnable pendingReconnectRunnable;
+    private volatile long connectionGeneration = 0;
     // Task 720: WebSocket timing for 10k visibility
     private volatile long wsConnectStartMs = 0;
 
     private synchronized void cancelPendingReconnect() {
-        if (reconnectHandler != null && pendingReconnectRunnable != null) {
-            reconnectHandler.removeCallbacks(pendingReconnectRunnable);
+        if (pendingReconnectRunnable != null) {
+            clock.removeCallbacks(pendingReconnectRunnable);
             pendingReconnectRunnable = null;
         }
         isReconnecting = false;
     }
 
+    /**
+     * Wraps the shared protocol callback so events from a superseded socket
+     * (older generation) are dropped instead of driving a new connection.
+     */
+    private WebSocketClient.WebSocketClientCallback callbackForGeneration(final long generation) {
+        final WebSocketClient.WebSocketClientCallback delegate = getWebSocketClientCallback();
+        return new WebSocketClient.WebSocketClientCallback() {
+            private boolean stale() {
+                return generation != connectionGeneration;
+            }
+
+            @Override
+            public void onOpen() {
+                if (!stale()) {
+                    delegate.onOpen();
+                }
+            }
+
+            @Override
+            public void onMessage(String message) {
+                if (!stale()) {
+                    delegate.onMessage(message);
+                }
+            }
+
+            @Override
+            public void onClose() {
+                if (!stale()) {
+                    delegate.onClose();
+                }
+            }
+
+            @Override
+            public void onError(Throwable exception) {
+                if (!stale()) {
+                    delegate.onError(exception);
+                }
+            }
+
+            @Override
+            public void stateChanged() {
+                delegate.stateChanged();
+            }
+        };
+    }
+
     private WebSocketClient.WebSocketClientCallback getWebSocketClientCallback() {
         return new WebSocketClient.WebSocketClientCallback() {
             @Override
-            public synchronized void onOpen() {
-                cancelPendingReconnect();
-                hasReceivedConnected = false;
-                // F4: reconnectAttempts reset moved to "connected" case in handleOperation
-                // Only reset after successful LiveQuery handshake, not just socket open
-                wsConnectStartMs = clock.currentTimeMillis();
+            public void onOpen() {
+                synchronized (ParseLiveQueryClientImpl.this) {
+                    cancelPendingReconnect();
+                    hasReceivedConnected = false;
+                    // F4: reconnectAttempts reset moved to "connected" case in handleOperation
+                    // Only reset after successful LiveQuery handshake, not just socket open
+                    wsConnectStartMs = clock.currentTimeMillis();
+                }
                 Log.v(LOG_TAG, "[WS-TIMING] Socket opened at " + wsConnectStartMs);
-                ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
+                ParseUser.getCurrentSessionTokenAsync().continueWithTask(new Continuation<String, Task<Void>>() {
                     @Override
                     public Task<Void> then(Task<String> task) throws Exception {
+                        if (task.getError() != null) {
+                            return Task.forError(task.getError());
+                        }
                         String sessionToken = task.getResult();
                         return sendOperationAsync(new ConnectClientOperation(applicationId, clientKey, sessionToken));
                     }
@@ -466,6 +558,16 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
                         Exception error = task.getError();
                         if (error != null) {
                             Log.e(LOG_TAG, "Error when connection client", error);
+                            RuntimeException cause = error instanceof RuntimeException
+                                    ? (RuntimeException) error
+                                    : new RuntimeException(error);
+                            dispatchServerError(new LiveQueryException.UnknownException(
+                                    "Error when connecting client", cause));
+                            synchronized (ParseLiveQueryClientImpl.this) {
+                                if (!userInitiatedDisconnect) {
+                                    scheduleReconnect();
+                                }
+                            }
                         }
                         return null;
                     }
@@ -487,24 +589,28 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
             }
 
             @Override
-            public synchronized void onClose() {
-                Log.v(LOG_TAG, "Socket onClose");
-                hasReceivedConnected = false;
-                dispatchDisconnected();
-                // Fix Issue #6: Auto-reconnect if not user-initiated
-                if (!userInitiatedDisconnect) {
-                    scheduleReconnect();
+            public void onClose() {
+                synchronized (ParseLiveQueryClientImpl.this) {
+                    Log.v(LOG_TAG, "Socket onClose");
+                    hasReceivedConnected = false;
+                    dispatchDisconnected();
+                    // Fix Issue #6: Auto-reconnect if not user-initiated
+                    if (!userInitiatedDisconnect) {
+                        scheduleReconnect();
+                    }
                 }
             }
 
             @Override
-            public synchronized void onError(Throwable exception) {
-                PLog.e(LOG_TAG, "Socket onError", exception);
-                hasReceivedConnected = false;
-                dispatchSocketError(exception);
-                // Fix Issue #6: Auto-reconnect on error if not user-initiated
-                if (!userInitiatedDisconnect) {
-                    scheduleReconnect();
+            public void onError(Throwable exception) {
+                synchronized (ParseLiveQueryClientImpl.this) {
+                    PLog.e(LOG_TAG, "Socket onError", exception);
+                    hasReceivedConnected = false;
+                    dispatchSocketError(exception);
+                    // Fix Issue #6: Auto-reconnect on error if not user-initiated
+                    if (!userInitiatedDisconnect) {
+                        scheduleReconnect();
+                    }
                 }
             }
 
@@ -536,18 +642,19 @@ class ParseLiveQueryClientImpl implements ParseLiveQueryClient {
         Log.d(LOG_TAG, "[RECONNECT] Scheduling reconnect in " + delay + "ms (Attempt " + reconnectAttempts
                 + ", subscriptions=" + subscriptions.size() + ")");
 
-        reconnectHandler = new android.os.Handler(android.os.Looper.getMainLooper());
         pendingReconnectRunnable = new Runnable() {
             @Override
             public void run() {
-                isReconnecting = false;
-                pendingReconnectRunnable = null;
-                if (!userInitiatedDisconnect) {
-                    Log.d(LOG_TAG, "[RECONNECT] Executing reconnect attempt " + reconnectAttempts);
-                    reconnect();
+                synchronized (ParseLiveQueryClientImpl.this) {
+                    isReconnecting = false;
+                    pendingReconnectRunnable = null;
+                    if (!userInitiatedDisconnect) {
+                        Log.d(LOG_TAG, "[RECONNECT] Executing reconnect attempt " + reconnectAttempts);
+                        reconnect();
+                    }
                 }
             }
         };
-        reconnectHandler.postDelayed(pendingReconnectRunnable, delay);
+        clock.postDelayed(pendingReconnectRunnable, delay);
     }
 }

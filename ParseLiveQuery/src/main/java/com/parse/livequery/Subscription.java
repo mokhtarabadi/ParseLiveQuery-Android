@@ -1,18 +1,20 @@
 // Sibling Docs: ./README.md | Decisions: ./DECISIONS.md
 package com.parse.livequery;
 
+import android.util.Log;
+
 import com.parse.ParseObject;
 import com.parse.ParseQuery;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 class Subscription<T extends ParseObject> implements SubscriptionHandling<T> {
 
-    private final List<HandleEventsCallback<T>> handleEventsCallbacks = new ArrayList<>();
-    private final List<HandleErrorCallback<T>> handleErrorCallbacks = new ArrayList<>();
-    private final List<HandleSubscribeCallback<T>> handleSubscribeCallbacks = new ArrayList<>();
-    private final List<HandleUnsubscribeCallback<T>> handleUnsubscribeCallbacks = new ArrayList<>();
+    private final List<HandleEventsCallback<T>> handleEventsCallbacks = new CopyOnWriteArrayList<>();
+    private final List<HandleErrorCallback<T>> handleErrorCallbacks = new CopyOnWriteArrayList<>();
+    private final List<HandleSubscribeCallback<T>> handleSubscribeCallbacks = new CopyOnWriteArrayList<>();
+    private final List<HandleUnsubscribeCallback<T>> handleUnsubscribeCallbacks = new CopyOnWriteArrayList<>();
 
     private final int requestId;
     private final ParseQuery<T> query;
@@ -81,7 +83,11 @@ class Subscription<T extends ParseObject> implements SubscriptionHandling<T> {
      */
     /* package */ void didReceive(Event event, ParseQuery<T> query, T object) {
         for (HandleEventsCallback<T> handleEventsCallback : handleEventsCallbacks) {
-            handleEventsCallback.onEvents(query, event, object);
+            try {
+                handleEventsCallback.onEvents(query, event, object);
+            } catch (Exception e) {
+                Log.e("Subscription", "Listener threw in onEvents", e);
+            }
         }
     }
 
@@ -93,7 +99,11 @@ class Subscription<T extends ParseObject> implements SubscriptionHandling<T> {
      */
     /* package */ void didEncounter(LiveQueryException error, ParseQuery<T> query) {
         for (HandleErrorCallback<T> handleErrorCallback : handleErrorCallbacks) {
-            handleErrorCallback.onError(query, error);
+            try {
+                handleErrorCallback.onError(query, error);
+            } catch (Exception e) {
+                Log.e("Subscription", "Listener threw in onError", e);
+            }
         }
     }
 
@@ -105,7 +115,11 @@ class Subscription<T extends ParseObject> implements SubscriptionHandling<T> {
      */
     /* package */ void didSubscribe(ParseQuery<T> query) {
         for (HandleSubscribeCallback<T> handleSubscribeCallback : handleSubscribeCallbacks) {
-            handleSubscribeCallback.onSubscribe(query);
+            try {
+                handleSubscribeCallback.onSubscribe(query);
+            } catch (Exception e) {
+                Log.e("Subscription", "Listener threw in onSubscribe", e);
+            }
         }
     }
 
@@ -117,7 +131,11 @@ class Subscription<T extends ParseObject> implements SubscriptionHandling<T> {
      */
     /* package */ void didUnsubscribe(ParseQuery<T> query) {
         for (HandleUnsubscribeCallback<T> handleUnsubscribeCallback : handleUnsubscribeCallbacks) {
-            handleUnsubscribeCallback.onUnsubscribe(query);
+            try {
+                handleUnsubscribeCallback.onUnsubscribe(query);
+            } catch (Exception e) {
+                Log.e("Subscription", "Listener threw in onUnsubscribe", e);
+            }
         }
     }
 

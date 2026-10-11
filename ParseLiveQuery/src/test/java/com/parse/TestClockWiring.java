@@ -2,6 +2,7 @@
 package com.parse;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.contains;
 
@@ -35,7 +36,7 @@ import static org.mockito.Mockito.when;
  * TestParseLiveQueryClient.
  */
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 21)
+@Config(sdk = 28)
 public class TestClockWiring {
 
     private WebSocketClient webSocketClient;
@@ -103,6 +104,14 @@ public class TestClockWiring {
             public long currentTimeMillis() {
                 return fakeNow;
             }
+
+            @Override
+            public void postDelayed(Runnable runnable, long delayMs) {
+            }
+
+            @Override
+            public void removeCallbacks(Runnable runnable) {
+            }
         });
         client.reconnect();
         webSocketClientCallback.onOpen();
@@ -119,5 +128,52 @@ public class TestClockWiring {
         connected.put("op", "connected");
         webSocketClientCallback.onMessage(connected.toString());
         verify(webSocketClient, never()).send(contains("\"op\":\"subscribe\""));
+    }
+
+    /** Recording fake clock: captures backoff delays and fires manually. */
+    private static class RecordingClock implements ParseLiveQueryClock {
+        final java.util.List<Long> delays = new java.util.ArrayList<>();
+        private long now = 1000L;
+
+        @Override
+        public long currentTimeMillis() {
+            return now;
+        }
+
+        @Override
+        public void postDelayed(Runnable runnable, long delayMs) {
+            delays.add(delayMs);
+        }
+
+        @Override
+        public void removeCallbacks(Runnable runnable) {
+        }
+    }
+
+    @Test
+    public void backoffDelay_isDeterministicThroughClock() throws Exception {
+        RecordingClock clock = new RecordingClock();
+        ParseLiveQueryClient client = newClientWithClock(clock);
+        client.reconnect();
+        // Socket drops before any handshake: first reconnect must wait exactly BASE delay.
+        webSocketClientCallback.onClose();
+        assertEquals(1, clock.delays.size());
+        assertEquals(Long.valueOf(1000L), clock.delays.get(0));
+    }
+
+    @Test
+    public void staleSocketCallback_doesNotScheduleReconnect() throws Exception {
+        RecordingClock clock = new RecordingClock();
+        ParseLiveQueryClient client = newClientWithClock(clock);
+        client.reconnect();
+        WebSocketClient.WebSocketClientCallback firstSocket = webSocketClientCallback;
+        client.reconnect();
+        WebSocketClient.WebSocketClientCallback secondSocket = webSocketClientCallback;
+        // Old socket close arriving late must not schedule anything.
+        firstSocket.onClose();
+        assertTrue(clock.delays.isEmpty());
+        // Current socket close schedules exactly one reconnect.
+        secondSocket.onClose();
+        assertEquals(1, clock.delays.size());
     }
 }
