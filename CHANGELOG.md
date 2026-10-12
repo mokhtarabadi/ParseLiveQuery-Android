@@ -2,6 +2,8 @@
 
 ### master
 
+- Central release wiring: consume `io.github.mokhtarabadi:parse:4.4.5` from Maven Central; publish `io.github.mokhtarabadi:ParseLiveQuery-Android` with POM metadata, javadoc jar, and conditional CI signing plus tag-triggered portal workflow (needs the SDK on Central first)
+
 - Harden deep-review fixes: redact sessionToken in logs, route global errors, break transport lock order, behavioral adversarial tests, clock jitter on infinite backoff, CI majors current; keep fork SDK 4.4.3 (4.4.4 unresolved on JitPack)
 
 ### 1.2.5

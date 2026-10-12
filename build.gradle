@@ -23,3 +23,20 @@ allprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+// Central Portal signing (release CI only): runs after all projects are evaluated so every
+// publication exists, and activates ONLY when SIGNING_KEY/SIGNING_PASSWORD are set. Local and
+// CI check builds never set them, so this stays inert there.
+gradle.projectsEvaluated {
+    gradle.rootProject.allprojects { p ->
+        if (System.getenv("SIGNING_KEY") && System.getenv("SIGNING_PASSWORD")) {
+            p.pluginManager.apply("signing")
+            def signingExt = p.extensions.getByName("signing")
+            signingExt.useInMemoryPgpKeys(System.getenv("SIGNING_KEY"), System.getenv("SIGNING_PASSWORD"))
+            def publishingExt = p.extensions.findByName("publishing")
+            if (publishingExt != null) {
+                signingExt.sign(publishingExt.publications)
+            }
+        }
+    }
+}

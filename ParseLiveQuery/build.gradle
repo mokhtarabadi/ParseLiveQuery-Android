@@ -23,6 +23,7 @@ android {
     publishing {
         singleVariant("release") {
             withSourcesJar()
+            withJavadocJar()
         }
     }
 
@@ -44,7 +45,7 @@ android {
 }
 
 dependencies {
-    api "com.github.mokhtarabadi.Parse-SDK-Android:parse:4.4.3"
+    api "io.github.mokhtarabadi:parse:4.4.5"
     api "com.squareup.okhttp3:okhttp:5.4.0"
 
     testImplementation "org.robolectric:robolectric:4.17"
@@ -64,7 +65,8 @@ spotless {
 // JitPack publishes via: ./gradlew clean -Pgroup=... -Pversion=... -xtest -xlint publishToMavenLocal
 apply plugin: "maven-publish"
 
-group = findProperty("group") ?: "com.github.mokhtarabadi"
+group = findProperty("centralGroup") ?: findProperty("group") ?: "com.github.mokhtarabadi"
+version = findProperty("centralVersion") ?: "1.2.5"
 
 base {
     archivesName = "ParseLiveQuery-Android"
@@ -76,6 +78,28 @@ afterEvaluate {
             release(MavenPublication) {
                 from components["release"]
                 artifactId = "ParseLiveQuery-Android"
+                pom {
+                    name = "ParseLiveQuery-Android"
+                    description = "Parse LiveQuery client for Android"
+                    url = "https://github.com/mokhtarabadi/ParseLiveQuery-Android"
+                    licenses {
+                        license {
+                            name = "BSD License"
+                            url = "https://github.com/mokhtarabadi/ParseLiveQuery-Android/blob/master/LICENSE"
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = "mokhtarabadi"
+                            name = "Mohammad Reza Mokhtarabadi"
+                        }
+                    }
+                    scm {
+                        connection = "scm:git:git://github.com/mokhtarabadi/ParseLiveQuery-Android.git"
+                        developerConnection = "scm:git:ssh://github.com/mokhtarabadi/ParseLiveQuery-Android.git"
+                        url = "https://github.com/mokhtarabadi/ParseLiveQuery-Android"
+                    }
+                }
             }
         }
     }
